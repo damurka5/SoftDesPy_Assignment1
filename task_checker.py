@@ -1,29 +1,48 @@
 import sys
 from io import StringIO
-import unittest
 import os
-import subprocess
 # The code with timeout decorator was taken from 
 # https://sky.pro/wiki/python/ustanovka-taymauta-na-vypolnenie-funktsii-v-python/
 from functools import wraps
+import signal
 import errno
 import os
 from threading import Timer
 
+# def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+#     def decorator(func):
+#         @wraps(func)
+#         def _handle_timeout(*args, **kwargs):
+#             def _raise_timeout():
+#                 raise TimeoutError
+#             timer = Timer(seconds, _raise_timeout)
+#             timer.start()
+#             try:
+#                 result = func(*args, **kwargs)
+#             # except TimeoutError as e:
+#             #     print("Время превышено")
+#             finally:
+#                 timer.cancel()
+#             return result
+#         return _handle_timeout
+#     return decorator
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     def decorator(func):
+        def _handle_timeout(signum, frame):
+            raise TimeoutError('Превышено время выполнения!')
+
         @wraps(func)
-        def _handle_timeout(*args, **kwargs):
-            def _raise_timeout():
-                raise TimeoutError
-            timer = Timer(seconds, _raise_timeout)
-            timer.start()
+        def wrapper(*args, **kwargs):
+            signal.signal(signal.SIGALRM, _handle_timeout)
+            signal.alarm(seconds)
+
             try:
                 result = func(*args, **kwargs)
             finally:
-                timer.cancel()
+                signal.alarm(0)  
             return result
-        return _handle_timeout
+
+        return wrapper
     return decorator
 ### end of open-source code
 
@@ -90,7 +109,12 @@ class TaskChecker:
     def run_tests(self, user_name='None', task_id=-1):
         for i, test in enumerate(zip(self.tests.ins, self.tests.outs), 1):
             print(f'Тест {i} проверяется')
+            
             student_out = self.exec_to(code=self.solution, input_data=test[0].strip())
+            if 'Ошибка при выполнении кода:' in student_out:
+                print('Превышено время выполнения!')
+                return
+                
             if student_out.strip() == test[1].strip():
                 print(f'Тест пройден')
                 continue
@@ -123,6 +147,8 @@ if __name__ == '__main__':
     solution = '''
 a = int(input())
 b = int(input())
+while True:
+    pass
 print(a+b) 
     '''
     check = TaskChecker('0_01.txt', solution=solution)
