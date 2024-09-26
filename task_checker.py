@@ -1,3 +1,33 @@
+import sys
+from io import StringIO
+import unittest
+import os
+import subprocess
+# The code with timeout decorator was taken from 
+# https://sky.pro/wiki/python/ustanovka-taymauta-na-vypolnenie-funktsii-v-python/
+from functools import wraps
+import errno
+import os
+from threading import Timer
+
+def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
+    def decorator(func):
+        @wraps(func)
+        def _handle_timeout(*args, **kwargs):
+            def _raise_timeout():
+                raise TimeoutError
+            timer = Timer(seconds, _raise_timeout)
+            timer.start()
+            try:
+                result = func(*args, **kwargs)
+            finally:
+                timer.cancel()
+            return result
+        return _handle_timeout
+    return decorator
+### end of open-source code
+
+
 user_stats = {} # dict with statistics about solved tasks, number of attempts, errors
 #  {
 #     user_name: {
@@ -32,7 +62,7 @@ class Test:
     def read_file(self, file_name):
         ins = []
         outs = []
-        with open(file=f'hw1/tasks/test/{file_name}') as f:
+        with open(file=f'tasks/test/{file_name}') as f:
             f_str = f.read()
             f_splitted = f_str.split('-----')
             for test in f_splitted:
@@ -43,22 +73,57 @@ class Test:
         return ins.copy(), outs.copy()
 
 class Task:
-    def __init__(self, file_name, tests):
+    def __init__(self, file_name):
         self.description = self.read_file(file_name)
-        self.tests = Test(file_name) 
         
     def read_file(self, file_name):
-        with open(file=f'hw1/tasks/description/{file_name}') as f:
+        with open(file=f'tasks/description/{file_name}') as f:
             return f.read()
         
 class TaskChecker:
-    def __init__(self, file_name):
+    def __init__(self, file_name, solution):
         self.task = Task(file_name=file_name)
-        self.test = Test(io_file=file_name)
+        self.tests = Test(io_file=file_name)
+        self.solution = solution
         
     @counter    
     def run_tests(self, user_name='None', task_id=-1):
-        ... # TODO code with exec
+        for i, test in enumerate(zip(self.tests.ins, self.tests.outs), 1):
+            print(f'Тест {i} проверяется')
+            student_out = self.exec_to(code=self.solution, input_data=test[0].strip())
+            if student_out.strip() == test[1].strip():
+                print(f'Тест пройден')
+                continue
+            else:
+                print(f'Ошибка на тесте {i}')
+                return
+        print('Все тесты пройдены успешно!')
+        
+    @timeout(seconds=2)
+    def exec_to(self, code, input_data):
+        original_stdout = sys.stdout
+        original_stdin = sys.stdin
+        
+        redirected_output = sys.stdout = StringIO()
+        sys.stdin = StringIO(input_data)
+        
+        try:
+            exec(code)
+            redirected_output = sys.stdout.getvalue().strip()
+        except Exception as e:
+            return f"Ошибка при выполнении кода: {e}"
+        finally:
+            sys.stdout = original_stdout
+            sys.stdin = original_stdin
+            
+        return redirected_output
+            
     
 if __name__ == '__main__':
-    print('Hey')
+    solution = '''
+a = int(input())
+b = int(input())
+print(a+b) 
+    '''
+    check = TaskChecker('0_01.txt', solution=solution)
+    check.run_tests(user_name='None', task_id=-1)
