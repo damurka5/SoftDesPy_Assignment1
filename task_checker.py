@@ -1,6 +1,7 @@
 import sys
 from io import StringIO
-import os
+import importlib
+import inspect
 # The code with timeout decorator was taken from 
 # https://sky.pro/wiki/python/ustanovka-taymauta-na-vypolnenie-funktsii-v-python/
 from functools import wraps
@@ -8,24 +9,8 @@ import signal
 import errno
 import os
 from threading import Timer
+from plugins_interface import PluginInterface, PluginManager
 
-# def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
-#     def decorator(func):
-#         @wraps(func)
-#         def _handle_timeout(*args, **kwargs):
-#             def _raise_timeout():
-#                 raise TimeoutError
-#             timer = Timer(seconds, _raise_timeout)
-#             timer.start()
-#             try:
-#                 result = func(*args, **kwargs)
-#             # except TimeoutError as e:
-#             #     print("Время превышено")
-#             finally:
-#                 timer.cancel()
-#             return result
-#         return _handle_timeout
-#     return decorator
 def timeout(seconds=10, error_message=os.strerror(errno.ETIME)):
     def decorator(func):
         def _handle_timeout(signum, frame):
@@ -71,7 +56,7 @@ def counter(func):
         return func(*args, **kwargs)
     return wrapper
         
-        
+
 
 class Test:
     def __init__(self, io_file):
@@ -104,9 +89,15 @@ class TaskChecker:
         self.task = Task(file_name=file_name)
         self.tests = Test(io_file=file_name)
         self.solution = solution
+        self.plugin_manager = PluginManager()
+        self.plugin_manager.load_plugins()
         
     @counter    
     def run_tests(self, user_name='None', task_id=-1):
+        if not self.plugin_manager.run_plugins(self.solution):
+            print('Код не прошел проверку плагинов.')
+            return
+        
         for i, test in enumerate(zip(self.tests.ins, self.tests.outs), 1):
             print(f'Тест {i} проверяется')
             
@@ -147,8 +138,7 @@ if __name__ == '__main__':
     solution = '''
 a = int(input())
 b = int(input())
-while True:
-    pass
+import os
 print(a+b) 
     '''
     check = TaskChecker('0_01.txt', solution=solution)
