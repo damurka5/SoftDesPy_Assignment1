@@ -78,7 +78,8 @@ class Test:
 
 class Task:
     def __init__(self, file_name):
-        self.description = self.read_file(file_name)
+        self.description = self.read_file(file_name).split("-----key-----")[0]
+        self.key = self.read_file(file_name).split("-----key-----")[1]
         
     def read_file(self, file_name):
         with open(file=f'tasks/description/{file_name}') as f:
@@ -96,7 +97,7 @@ class TaskChecker:
     def run_tests(self, user_name='None', task_id=-1):
         if not self.plugin_manager.run_plugins(self.solution):
             print('Код не прошел проверку плагинов.')
-            return
+            return False
         
         for i, test in enumerate(zip(self.tests.ins, self.tests.outs), 1):
             print(f'Тест {i} проверяется')
@@ -104,15 +105,16 @@ class TaskChecker:
             student_out = self.exec_to(code=self.solution, input_data=test[0].strip())
             if 'Ошибка при выполнении кода:' in student_out:
                 print('Превышено время выполнения!')
-                return
+                return False
                 
             if student_out.strip() == test[1].strip():
                 print(f'Тест пройден')
                 continue
             else:
                 print(f'Ошибка на тесте {i}')
-                return
+                return False
         print('Все тесты пройдены успешно!')
+        return True
         
     @timeout(seconds=2)
     def exec_to(self, code, input_data):
@@ -138,8 +140,8 @@ if __name__ == '__main__':
     solution = '''
 a = int(input())
 b = int(input())
-import os
 print(a+b) 
     '''
     check = TaskChecker('0_01.txt', solution=solution)
-    check.run_tests(user_name='None', task_id=-1)
+    if(check.run_tests(user_name='None', task_id=-1)):
+        print(check.task.key)
